@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Yellowstone Trip · Photo Album</title>
+<!--
+  ============================================================
+  YELLOWSTONE TRIP PHOTO ALBUM  ·  one-time setup
+  ============================================================
+  1. Supabase -> Storage -> New bucket, name it exactly:
+     yellowstone-album   (turn ON "Public bucket")
+  2. Supabase -> SQL Editor -> run the script at the bottom
+     of this file.
+  3. CONFIG below is pre-filled for your album project. Edit
+     TRIP_NAME / DATES if you like, then host this file.
+  ============================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Oswald:wght@300;400;500;600;700&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal:#1d4a5b; --pine:#23423a; --kraft:#e9dcc1; --kraft2:#f3ead4;
+    --rust:#c2552e; --gold:#e0a53f; --bark:#5a4632; --ink:#2f2a20;
+    --mute:#857658; --line:#d6c6a4;
+    --shadow:0 16px 36px -20px rgba(47,42,32,.5);
+  }
+  *{box-sizing:border-box;} html,body{margin:0;padding:0;}
+  body{ background:var(--kraft); color:var(--ink); font-family:"Oswald",sans-serif; -webkit-font-smoothing:antialiased; min-height:100vh; }
+
+  /* banner */
+  .banner{ position:relative; width:100%; height:clamp(300px,42vw,470px); overflow:hidden; }
+  .banner .scene{ position:absolute; inset:0; }
+  .banner .overlay{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 18px; }
+  .eyebrow{ color:#f7eede; font-weight:500; letter-spacing:6px; font-size:clamp(12px,2vw,16px); text-transform:uppercase; margin:0; text-shadow:0 2px 8px rgba(20,30,30,.5); }
+  .title{ font-family:"Alfa Slab One",serif; color:#fbf3e2; font-size:clamp(46px,11vw,108px); line-height:.95; margin:6px 0 4px; letter-spacing:1px; text-shadow:0 4px 0 rgba(40,24,16,.28), 0 10px 26px rgba(20,12,8,.4); }
+  .dates{ color:#fbf0db; font-weight:500; letter-spacing:3px; font-size:clamp(14px,2.4vw,20px); text-shadow:0 2px 8px rgba(20,30,30,.5); display:flex; align-items:center; gap:12px; }
+  .dates .pk{ color:#f6c45a; }
+
+  .wrap{ max-width:1120px; margin:0 auto; padding:0 18px 90px; }
+
+  /* uploader */
+  .uploader{ background:var(--kraft2); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:clamp(22px,4vw,34px); max-width:640px; margin:-50px auto 0; position:relative; z-index:2; }
+  .badge{ position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:var(--rust); color:#fff; font-weight:600; letter-spacing:2px; font-size:12px; text-transform:uppercase; padding:8px 18px; border-radius:30px; box-shadow:0 6px 16px -6px rgba(0,0,0,.4); }
+  .drop{ border:2px dashed var(--line); border-radius:13px; padding:30px 18px; text-align:center; cursor:pointer; transition:border-color .18s, background .18s; margin-top:8px; }
+  .drop:hover,.drop.over{ border-color:var(--gold); background:#fbf6ea; }
+  .drop .big{ font-family:"Pacifico",cursive; color:var(--pine); font-size:30px; line-height:1; }
+  .drop .sub{ color:var(--mute); font-size:16px; margin-top:8px; font-weight:300; }
+  input[type=file]{ display:none; }
+  .meta{ display:grid; gap:12px; margin-top:18px; }
+  input[type=text]{ width:100%; font-family:"Oswald",sans-serif; font-weight:300; font-size:17px; color:var(--ink); background:#fffdf7; border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  input[type=text]:focus{ outline:none; border-color:var(--gold); }
+  input::placeholder{ color:#b6a886; }
+  .queue{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+  .thumb{ position:relative; width:74px; height:74px; border-radius:9px; overflow:hidden; border:1px solid var(--line); }
+  .thumb img{ width:100%; height:100%; object-fit:cover; }
+  .thumb .x{ position:absolute; top:2px; right:2px; width:20px; height:20px; border:none; border-radius:50%; background:rgba(47,42,32,.72); color:#fff; cursor:pointer; font-size:13px; line-height:20px; padding:0; }
+  .send{ margin-top:20px; width:100%; border:none; cursor:pointer; background:var(--rust); color:#fff; font-family:"Oswald",sans-serif; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; font-size:15px; padding:15px; border-radius:11px; transition:background .18s, transform .12s; }
+  .send:hover{ background:#a9461f; transform:translateY(-1px); }
+  .send:disabled{ opacity:.5; cursor:default; transform:none; }
+  .status{ text-align:center; color:var(--mute); font-size:15px; margin-top:12px; min-height:20px; }
+  .banner-note{ max-width:640px; margin:24px auto 0; background:#f5ead0; border:1px solid var(--line); border-radius:10px; padding:11px 16px; text-align:center; color:var(--mute); font-size:15px; }
+  .banner-note b{ color:var(--ink); }
+
+  /* gallery */
+  .gallery-head{ text-align:center; margin:64px 0 26px; }
+  .gallery-head h2{ font-family:"Pacifico",cursive; color:var(--pine); font-weight:400; font-size:clamp(32px,5vw,46px); margin:0; }
+  .gallery-head .count{ color:var(--mute); letter-spacing:2px; text-transform:uppercase; font-size:13px; margin-top:8px; }
+  .grid{ columns:4 240px; column-gap:16px; }
+  .tile{ break-inside:avoid; margin-bottom:16px; background:#fffdf7; padding:10px 10px 0; border:1px solid var(--line); border-radius:6px; box-shadow:var(--shadow); cursor:zoom-in; }
+  .tile img{ width:100%; display:block; border-radius:3px; }
+  .tile .cap{ padding:9px 4px 12px; }
+  .tile .cap .who{ font-weight:600; font-size:15px; color:var(--ink); }
+  .tile .cap .note{ color:var(--mute); font-size:14px; font-weight:300; }
+  .empty{ text-align:center; color:var(--mute); padding:50px 0; font-size:18px; }
+
+  .lb{ position:fixed; inset:0; background:rgba(24,20,14,.92); display:none; align-items:center; justify-content:center; z-index:50; padding:24px; cursor:zoom-out; }
+  .lb.open{ display:flex; }
+  .lb img{ max-width:94vw; max-height:88vh; border-radius:6px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .lb .cap{ position:absolute; bottom:22px; left:0; right:0; text-align:center; color:#f3ead4; font-size:17px; }
+
+  /* photo actions */
+  .tile{ position:relative; }
+  .tile-actions{ position:absolute; top:8px; right:8px; display:flex; gap:6px; opacity:0; transition:opacity .15s; }
+  .tile:hover .tile-actions{ opacity:1; }
+  @media (hover:none){ .tile-actions{ opacity:.92; } }
+  .iconbtn{ width:34px; height:34px; border:none; border-radius:50%; background:rgba(54,50,44,.78); color:#fff; cursor:pointer; font-size:16px; line-height:1; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+  .iconbtn:hover{ background:rgba(54,50,44,.96); }
+  .iconbtn.del{ background:rgba(168,45,30,.88); }
+  .iconbtn.del:hover{ background:rgba(168,45,30,1); }
+  #dlall-wrap{ margin-top:12px; }
+  .dl-all{ display:inline-flex; align-items:center; gap:8px; background:var(--pine); color:#fff; border:none; border-radius:24px; padding:9px 20px; font-family:"Oswald",sans-serif; font-size:14px; letter-spacing:1px; cursor:pointer; }
+  .dl-all:hover{ background:#1b3329; } .dl-all:disabled{ opacity:.6; cursor:default; }
+  .hostnote{ margin-top:8px; font-family:"Oswald",sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--rust); }
+  .lb-bar{ position:absolute; top:18px; right:18px; display:flex; gap:10px; z-index:3; }
+  .lb-bar .iconbtn{ width:42px; height:42px; font-size:19px; }
+
+
+  @media (max-width:560px){ .grid{ columns:2 150px; } }
+
+  /* itinerary */
+  .itin{ margin-top:72px; }
+  .day{ background:var(--kraft2); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden; }
+  .day-head{ width:100%; text-align:left; background:none; border:none; cursor:pointer; padding:18px 22px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; font-family:"Oswald",sans-serif; }
+  .day-head .dnum{ font-weight:700; color:var(--rust); font-size:13px; letter-spacing:2px; text-transform:uppercase; }
+  .day-head .dtitle{ font-weight:700; font-size:20px; color:var(--pine); }
+  .day-head .dtheme{ color:var(--mute); font-size:16px; font-weight:300; }
+  .day-head .chev{ margin-left:auto; color:var(--rust); font-size:24px; line-height:1; transition:transform .2s; }
+  .day.open .chev{ transform:rotate(45deg); }
+  .day-body{ display:none; padding:2px 22px 20px; }
+  .day.open .day-body{ display:block; }
+  .route{ color:var(--bark); font-size:16px; border-left:3px solid var(--rust); padding-left:12px; margin:0 0 14px; }
+  .route b{ color:var(--pine); text-transform:uppercase; letter-spacing:1px; font-size:13px; }
+  .day-body ul{ list-style:none; margin:0; padding:0; }
+  .day-body li{ display:flex; gap:14px; padding:11px 0; border-bottom:1px dashed var(--line); }
+  .day-body li:last-child{ border-bottom:none; }
+  .time{ flex:0 0 92px; font-weight:600; color:var(--rust); font-size:14px; padding-top:2px; }
+  .what{ flex:1; font-size:17px; font-weight:300; color:var(--ink); }
+  .what b{ font-weight:600; color:var(--pine); }
+  .sub{ margin-top:5px; color:var(--mute); font-size:15px; }
+  ol.safety{ margin:0 0 4px; padding-left:22px; color:var(--ink); font-weight:300; font-size:17px; }
+  ol.safety li{ padding:6px 0; }
+  .addon{ margin:12px 0 0; color:var(--bark); font-style:italic; font-size:16px; }
+  @media (max-width:560px){ .time{ flex-basis:74px; font-size:13px; } .day-head .dtheme{ width:100%; } }
+
+
+  .day-body li{ align-items:flex-start; }
+  .check{ flex:0 0 auto; width:22px; height:22px; margin-top:2px; border:2px solid var(--line); border-radius:6px; background:#fffdf7; color:transparent; font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .15s,border-color .15s,color .15s; }
+  .check:hover{ border-color:var(--pine); }
+  li.done .check{ background:var(--pine); border-color:var(--pine); color:#fff; }
+  li.done .what{ opacity:.45; text-decoration:line-through; }
+  li.done .time{ opacity:.45; }
+
+  .savetip{ text-align:center; color:var(--mute); font-size:14px; margin-top:8px; font-family:"Oswald",sans-serif; }
+  .add-line{ margin-top:10px; background:none; border:1px dashed var(--line); color:var(--pine); border-radius:10px; padding:8px 14px; font-family:"Oswald",sans-serif; font-size:13px; letter-spacing:1px; cursor:pointer; }
+  .add-line:hover{ border-color:var(--pine); background:#fbf6ea; }
+  .item-edit{ flex:0 0 auto; margin-left:4px; background:none; border:none; color:var(--mute); cursor:pointer; font-size:15px; padding:0 4px; }
+  .item-edit:hover{ color:var(--pine); }
+  .editor{ background:#fbf6ea; border:1px solid var(--line); border-radius:10px; padding:12px; margin:8px 0; display:flex; flex-direction:column; gap:8px; }
+  .editor input, .editor textarea{ width:100%; font-family:"Oswald",sans-serif; font-weight:300; font-size:16px; border:1px solid var(--line); border-radius:8px; padding:9px 11px; background:#fffdf7; color:var(--ink); }
+  .editor textarea{ min-height:60px; resize:vertical; }
+  .editor .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .editor button{ font-family:"Oswald",sans-serif; font-size:13px; letter-spacing:1px; border:none; border-radius:8px; padding:9px 16px; cursor:pointer; }
+  .btn-save{ background:var(--pine); color:#fff; } .btn-del{ background:rgba(168,45,30,.9); color:#fff; } .btn-cancel{ background:#e0d6bf; color:var(--ink); }
+
+  .line-ctrl{ flex:0 0 auto; display:flex; align-items:center; gap:1px; margin-left:4px; }
+  .mv{ background:none; border:none; color:var(--mute); cursor:pointer; font-size:11px; line-height:1; padding:3px 3px; }
+  .mv:hover{ color:var(--pine); }
+  .sort-time{ margin-top:10px; margin-left:8px; background:none; border:1px dashed var(--line); color:var(--bark); border-radius:10px; padding:8px 14px; font-family:"Oswald",sans-serif; font-size:13px; letter-spacing:1px; cursor:pointer; }
+  .sort-time:hover{ border-color:var(--bark); background:#fbf6ea; }
+
+  .day-edit{ margin:2px 0 12px; background:none; border:none; color:var(--mute); cursor:pointer; font-family:"Oswald",sans-serif; font-size:13px; letter-spacing:.5px; padding:2px 0; text-decoration:underline; }
+  .day-edit:hover{ color:var(--pine); }
+  .btn-save-day{ background:var(--pine); color:#fff; }
+</style>
+</head>
+<body>
+  <div class="banner">
+    <div class="scene"><svg viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" style="width:100%;height:100%;display:block;"><defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#1d4a5b"/>
+        <stop offset="0.45" stop-color="#d77f44"/>
+        <stop offset="0.78" stop-color="#edb15e"/>
+        <stop offset="1" stop-color="#f3d489"/>
+      </linearGradient>
+    </defs><rect width="1200" height="560" fill="url(#sky)"/><g><polygon points="704,209 814,215 704,221" fill="#f6c45a" opacity="0.55"/><polygon points="687,271 773,341 681,281" fill="#f6c45a" opacity="0.55"/><polygon points="638,312 666,419 627,316" fill="#f6c45a" opacity="0.55"/><polygon points="573,316 534,419 562,312" fill="#f6c45a" opacity="0.55"/><polygon points="519,281 427,341 513,271" fill="#f6c45a" opacity="0.55"/><polygon points="496,221 386,215 496,209" fill="#f6c45a" opacity="0.55"/><polygon points="513,159 427,89 519,149" fill="#f6c45a" opacity="0.55"/><polygon points="562,118 534,11 573,114" fill="#f6c45a" opacity="0.55"/><polygon points="627,114 666,11 638,118" fill="#f6c45a" opacity="0.55"/><polygon points="681,149 773,89 687,159" fill="#f6c45a" opacity="0.55"/></g><circle cx="600" cy="215" r="96" fill="#f4b740"/><circle cx="600" cy="215" r="76" fill="#f8cf6e"/><ellipse cx="886" cy="340" rx="30" ry="24" fill="#f4efe2" opacity="0.45"/><ellipse cx="880" cy="300" rx="34" ry="27" fill="#f4efe2" opacity="0.5"/><ellipse cx="872" cy="254" rx="30" ry="24" fill="#f4efe2" opacity="0.55"/><ellipse cx="864" cy="208" rx="25" ry="20" fill="#f4efe2" opacity="0.5"/><ellipse cx="857" cy="166" rx="19" ry="15" fill="#f4efe2" opacity="0.42"/><polygon points="0,392 130,300 250,372 380,286 520,366 660,300 800,374 940,306 1080,372 1200,330 1200,560 0,560" fill="#3c6c69"/><polygon points="0,452 170,360 300,430 470,330 610,420 770,346 940,432 1100,358 1200,420 1200,560 0,560" fill="#2c574c"/><polygon points="442,360 470,330 498,360" fill="#f2ece0"/><polygon points="744,376 770,346 796,376" fill="#f2ece0"/><polygon points="146,386 170,360 194,386" fill="#ede7da"/><path d="M0,470 Q300,440 600,468 T1200,462 L1200,560 L0,560 Z" fill="#23423a"/><g><polygon points="47,514 70,485 93,514" fill="#1b3329"/><polygon points="51,491 70,461 89,491" fill="#1b3329"/><polygon points="55,467 70,438 85,467" fill="#1b3329"/><rect x="66" y="505" width="8" height="16" fill="#3a2c20"/><polygon points="132,522 150,499 168,522" fill="#1b3329"/><polygon points="135,505 150,481 165,505" fill="#1b3329"/><polygon points="139,487 150,464 161,487" fill="#1b3329"/><rect x="146" y="513" width="8" height="16" fill="#3a2c20"/><polygon points="228,518 255,484 282,518" fill="#1b3329"/><polygon points="233,490 255,456 277,490" fill="#1b3329"/><polygon points="238,462 255,428 272,462" fill="#1b3329"/><rect x="251" y="509" width="8" height="16" fill="#3a2c20"/><polygon points="340,526 360,500 380,526" fill="#1b3329"/><polygon points="344,506 360,480 376,506" fill="#1b3329"/><polygon points="347,486 360,460 373,486" fill="#1b3329"/><rect x="356" y="517" width="8" height="16" fill="#3a2c20"/><polygon points="441,520 470,483 499,520" fill="#1b3329"/><polygon points="446,489 470,453 494,489" fill="#1b3329"/><polygon points="452,459 470,422 488,459" fill="#1b3329"/><rect x="466" y="511" width="8" height="16" fill="#3a2c20"/><polygon points="568,528 590,500 612,528" fill="#1b3329"/><polygon points="572,506 590,478 608,506" fill="#1b3329"/><polygon points="576,484 590,456 604,484" fill="#1b3329"/><rect x="586" y="519" width="8" height="16" fill="#3a2c20"/><polygon points="674,518 700,485 726,518" fill="#1b3329"/><polygon points="679,491 700,459 721,491" fill="#1b3329"/><polygon points="684,465 700,432 716,465" fill="#1b3329"/><rect x="696" y="509" width="8" height="16" fill="#3a2c20"/><polygon points="800,526 820,501 840,526" fill="#1b3329"/><polygon points="804,507 820,481 836,507" fill="#1b3329"/><polygon points="807,487 820,462 833,487" fill="#1b3329"/><rect x="816" y="517" width="8" height="16" fill="#3a2c20"/><polygon points="912,520 940,485 968,520" fill="#1b3329"/><polygon points="917,491 940,455 963,491" fill="#1b3329"/><polygon points="922,461 940,426 958,461" fill="#1b3329"/><rect x="936" y="511" width="8" height="16" fill="#3a2c20"/><polygon points="1038,526 1060,499 1082,526" fill="#1b3329"/><polygon points="1042,505 1060,477 1078,505" fill="#1b3329"/><polygon points="1046,483 1060,456 1074,483" fill="#1b3329"/><rect x="1056" y="517" width="8" height="16" fill="#3a2c20"/><polygon points="1125,518 1150,487 1175,518" fill="#1b3329"/><polygon points="1130,493 1150,461 1170,493" fill="#1b3329"/><polygon points="1134,467 1150,436 1166,467" fill="#1b3329"/><rect x="1146" y="509" width="8" height="16" fill="#3a2c20"/></g></svg></div>
+    <div class="overlay">
+      <p class="eyebrow">Our Trip To</p>
+      <h1 class="title" id="trip">Yellowstone</h1>
+      <p class="dates"><span class="pk">▲</span><span id="dates">September 4 – 8</span><span class="pk">▲</span></p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <section class="uploader">
+      <div class="badge">Share Your Photos</div>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept="image/*" multiple />
+        <div class="big">Add your photos</div>
+        <div class="sub">Tap to choose, or drag pictures here</div>
+      </label>
+      <div class="queue" id="queue"></div>
+      <div class="meta">
+        <input type="text" id="name" placeholder="Your name (optional)" />
+        <input type="text" id="caption" placeholder="Add a caption (optional)" />
+      </div>
+      <button class="send" id="send" disabled>Add to the album</button>
+      <div class="status" id="status"></div>
+    </section>
+
+    <div class="banner-note" id="banner-note" style="display:none;"></div>
+
+    <div class="gallery-head">
+      <h2>The Trip Album</h2>
+      <div class="count" id="count">Loading…</div>
+      <div id="dlall-wrap" style="display:none;"><button class="dl-all" id="dlall">↓  Download all</button></div>
+      <div id="hostnote" class="hostnote" style="display:none;">Host mode · delete &amp; itinerary editing enabled</div>
+      <div class="savetip">On a phone? Tap a photo, then press &amp; hold it to save to your camera roll.</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" style="display:none;">No photos yet — be the first to add one.</div>
+    <section class="itin">
+      <div class="gallery-head"><h2>The Itinerary</h2><div class="count">Base Camp · 4225 Big Horn Lane, Island Park, ID 83429 · September 4–8, 2026</div></div>
+      <div id="itin-days"></div>
+      <div class="day"><button class="day-head" onclick="toggleDay(this)"><span class="dnum">Notes</span><span class="dtitle">Wildlife & Safety</span><span class="dtheme">Read before each morning</span><span class="chev">+</span></button><div class="day-body"><ol class="safety"><li>Bear spray: always on your person, not in your bag.</li><li>Distance: stay 100 yards (91 m) from bears/wolves and 25 yards (23 m) from bison/elk.</li><li>Commute: Bill’s Island is ~40 minutes from the West Entrance — factor it into every morning.</li><li>Fuel: never let your tank drop below half inside the park.</li></ol><p class="addon">Possible add-on: Upper Mesa Falls — 52 minutes south of the cabin.</p></div></div>
+    </section>
+
+  </div>
+
+  <div class="lb" id="lb"><div class="lb-bar" id="lbbar"></div><img id="lbimg" alt="" /><div class="cap" id="lbcap"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+/* ===================== CONFIG ===================== */
+const SUPABASE_URL = "https://fjpabwmxxyeixjdcfqck.supabase.co";
+const SUPABASE_KEY = "sb_publishable_k27PM4OC6zNC0hBjjhfhPw_SRdQr4S1";
+const BUCKET       = "yellowstone-album";
+const TABLE        = "yellowstone_photos";
+const HOST_CODE    = "ranger2026";   // visit ...?host=ranger2026 to unlock delete buttons
+const TRIP_NAME    = "Yellowstone";
+const DATES        = "September 4 – 8";
+/* ================================================== */
+
+document.getElementById("trip").textContent = TRIP_NAME;
+document.getElementById("dates").textContent = DATES;
+document.title = TRIP_NAME + " Trip · Photo Album";
+
+const LIVE = (typeof supabase !== "undefined") && SUPABASE_URL && !SUPABASE_URL.includes("YOUR_");
+const sb = LIVE ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let demo = [];
+if (!LIVE) {
+  const b = document.getElementById("banner-note");
+  b.style.display = "block";
+  b.innerHTML = "<b>Preview mode.</b> Photos here are local only — host this file with your Supabase keys to go live.";
+}
+
+let queued = [];
+const fileInput = document.getElementById("file");
+const drop = document.getElementById("drop");
+const queueEl = document.getElementById("queue");
+const sendBtn = document.getElementById("send");
+const statusEl = document.getElementById("status");
+
+fileInput.addEventListener("change", e => addFiles(e.target.files));
+["dragover","dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+
+function addFiles(list){ for (const f of list){ if (f.type.startsWith("image/")) queued.push(f); } renderQueue(); }
+function renderQueue(){
+  queueEl.innerHTML = "";
+  queued.forEach((f,i)=>{
+    const d=document.createElement("div"); d.className="thumb";
+    const img=document.createElement("img"); img.src=URL.createObjectURL(f); d.appendChild(img);
+    const x=document.createElement("button"); x.className="x"; x.textContent="×";
+    x.onclick=()=>{ queued.splice(i,1); renderQueue(); }; d.appendChild(x); queueEl.appendChild(d);
+  });
+  sendBtn.disabled = queued.length===0;
+  sendBtn.textContent = queued.length>1 ? ("Add "+queued.length+" photos to the album") : "Add to the album";
+}
+
+function processImage(file, maxDim=1800, quality=0.85){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let {width,height}=img;
+      if(Math.max(width,height)>maxDim){ const s=maxDim/Math.max(width,height); width=Math.round(width*s); height=Math.round(height*s); }
+      const c=document.createElement("canvas"); c.width=width; c.height=height;
+      c.getContext("2d").drawImage(img,0,0,width,height);
+      c.toBlob(b=>b?resolve(b):reject(new Error("encode failed")),"image/jpeg",quality);
+    };
+    img.onerror=reject; img.src=URL.createObjectURL(file);
+  });
+}
+
+sendBtn.addEventListener("click", upload);
+async function upload(){
+  if(!queued.length) return;
+  const name=document.getElementById("name").value.trim()||null;
+  const caption=document.getElementById("caption").value.trim()||null;
+  sendBtn.disabled=true; const total=queued.length;
+  try{
+    for(let i=0;i<total;i++){
+      statusEl.textContent="Uploading "+(i+1)+" of "+total+"…";
+      const blob=await processImage(queued[i]);
+      if(LIVE){
+        const path=Date.now()+"-"+Math.random().toString(36).slice(2,8)+".jpg";
+        const up=await sb.storage.from(BUCKET).upload(path,blob,{contentType:"image/jpeg"});
+        if(up.error) throw up.error;
+        const { data:{ publicUrl } }=sb.storage.from(BUCKET).getPublicUrl(path);
+        const ins=await sb.from(TABLE).insert({ url:publicUrl, path, uploader:name, caption });
+        if(ins.error) throw ins.error;
+      } else {
+        demo.unshift({ url:URL.createObjectURL(blob), uploader:name, caption, created_at:new Date().toISOString() });
+      }
+    }
+    statusEl.textContent = total>1 ? "Added! Your photos are in the album." : "Added! Your photo is in the album.";
+    queued=[]; renderQueue();
+    document.getElementById("name").value=""; document.getElementById("caption").value="";
+    loadGallery();
+  }catch(e){
+    console.error(e);
+    const msg=(e&&(e.message||e.error||e.error_description))||"unknown error";
+    statusEl.textContent="Upload failed: "+msg; sendBtn.disabled=false;
+  }
+}
+
+const HOST = (new URLSearchParams(location.search).get("host")===HOST_CODE);
+if(HOST){ const hn=document.getElementById("hostnote"); if(hn) hn.style.display="block"; }
+let PHOTOS=[];
+const dlallWrap=document.getElementById("dlall-wrap");
+document.getElementById("dlall").addEventListener("click",downloadAll);
+const grid=document.getElementById("grid"), countEl=document.getElementById("count"), emptyEl=document.getElementById("empty");
+async function loadGallery(){
+  let rows=[];
+  try{
+    if(LIVE){ const { data,error }=await sb.from(TABLE).select("*").order("created_at",{ascending:false}); if(error) throw error; rows=data||[]; }
+    else { rows=demo; }
+  }catch(e){ console.error(e); countEl.textContent="Couldn't load the album."; return; }
+  PHOTOS=rows;
+  countEl.textContent = rows.length ? (rows.length+" photo"+(rows.length>1?"s":"")+" shared") : "";
+  dlallWrap.style.display = rows.length ? "block":"none";
+  emptyEl.style.display = rows.length ? "none":"block";
+  grid.innerHTML = rows.map((r,i)=>{
+    const cap=(r.uploader||r.caption)?('<div class="cap">'+(r.uploader?'<div class="who">'+esc(r.uploader)+'</div>':'')+(r.caption?'<div class="note">'+esc(r.caption)+'</div>':'')+'</div>'):'';
+    const actions='<div class="tile-actions"><button class="iconbtn dl" title="Save photo">\u2193</button>'+(HOST?'<button class="iconbtn del" title="Delete photo">\u2715</button>':'')+'</div>';
+    return '<div class="tile" data-i="'+i+'">'+actions+'<img loading="lazy" src="'+r.url+'" alt="">'+cap+'</div>';
+  }).join("");
+  grid.querySelectorAll(".tile").forEach(t=>{
+    const i=+t.dataset.i;
+    t.addEventListener("click",ev=>{ if(ev.target.closest(".tile-actions")) return; openLb(i); });
+    const dl=t.querySelector(".dl"); if(dl) dl.addEventListener("click",ev=>{ ev.stopPropagation(); dlPhoto(PHOTOS[i].url); });
+    const del=t.querySelector(".del"); if(del) del.addEventListener("click",ev=>{ ev.stopPropagation(); delPhoto(i); });
+  });
+}
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const lb=document.getElementById("lb"), lbimg=document.getElementById("lbimg"), lbcap=document.getElementById("lbcap");
+let curLb=-1;
+function capOf(r){ return (r.uploader?r.uploader+(r.caption?" \u2014 ":""):"")+(r.caption||""); }
+function openLb(i){ const r=PHOTOS[i]; curLb=i; lbimg.src=r.url; lbcap.textContent=capOf(r); buildLbBar(r,i); lb.classList.add("open"); }
+function buildLbBar(r,i){
+  lbbar.innerHTML="";
+  const dl=document.createElement("button"); dl.className="iconbtn"; dl.title="Save photo"; dl.textContent="\u2193";
+  dl.onclick=ev=>{ ev.stopPropagation(); dlPhoto(r.url); }; lbbar.appendChild(dl);
+  if(HOST){ const x=document.createElement("button"); x.className="iconbtn del"; x.title="Delete photo"; x.textContent="\u2715";
+    x.onclick=ev=>{ ev.stopPropagation(); lb.classList.remove("open"); delPhoto(i); }; lbbar.appendChild(x); }
+}
+lb.addEventListener("click",ev=>{ if(ev.target.closest(".lb-bar")) return; lb.classList.remove("open"); });
+
+async function dlPhoto(url,name){
+  name=name||(url.split("/").pop()||"photo.jpg");
+  try{
+    const res=await fetch(url,{mode:"cors"}); const blob=await res.blob();
+    const file=new File([blob], name, {type: blob.type||"image/jpeg"});
+    // Phones: open the native share sheet so the user can choose "Save Image" -> Photos
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file]}); return; }
+      catch(e){ if(e && e.name==="AbortError") return; }
+    }
+    // Desktop / fallback: download as a file
+    const a=document.createElement("a"); const u=URL.createObjectURL(blob);
+    a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+  }catch(e){ window.open(url,"_blank"); }
+}
+async function delPhoto(i){
+  const r=PHOTOS[i]; if(!r) return;
+  if(!confirm("Delete this photo for everyone? This can\u2019t be undone.")) return;
+  try{
+    if(LIVE){ if(r.path) await sb.storage.from(BUCKET).remove([r.path]); const {error}=await sb.from(TABLE).delete().eq("id",r.id); if(error) throw error; }
+    else { demo.splice(i,1); }
+    loadGallery();
+  }catch(e){ alert("Couldn't delete: "+(e.message||e)); }
+}
+async function downloadAll(){
+  if(!PHOTOS.length) return;
+  const btn=document.getElementById("dlall"); const orig=btn.textContent; btn.disabled=true;
+  try{
+    const zip=new JSZip();
+    for(let i=0;i<PHOTOS.length;i++){
+      btn.textContent="Zipping "+(i+1)+"/"+PHOTOS.length+"\u2026";
+      try{ const res=await fetch(PHOTOS[i].url,{mode:"cors"}); const blob=await res.blob();
+        const who=PHOTOS[i].uploader?PHOTOS[i].uploader.replace(/[^a-z0-9]+/gi,"_")+"-":"";
+        zip.file(String(i+1).padStart(3,"0")+"-"+who+"photo.jpg", blob);
+      }catch(e){ console.warn("skip",PHOTOS[i].url,e); }
+    }
+    btn.textContent="Building zip\u2026";
+    const out=await zip.generateAsync({type:"blob"});
+    const a=document.createElement("a"); const u=URL.createObjectURL(out);
+    a.href=u; a.download="yellowstone-album.zip"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+  }catch(e){ alert("Couldn't build the download: "+(e.message||e)); }
+  btn.textContent=orig; btn.disabled=false;
+}
+loadGallery();
+
+function toggleDay(btn){ const day=btn.closest(".day"); if(!day) return; const on=day.classList.toggle("open"); const id=day.dataset.day; if(id && openDays){ if(on) openDays.add(id); else openDays.delete(id); } }
+
+
+
+
+/* ---- editable itinerary (shared via Supabase; editable in host mode) ---- */
+const ITIN_TABLE="yellowstone_itinerary";
+const DEFAULT_ITIN=[{"id": "d1", "num": "Day 1", "day": "Friday", "date": "Sept 4", "theme": "Arrival & Logistics", "leadLabel": "Goal", "leadText": "Stock the cabin and prep for an early start.", "items": [{"id": "d1-groceries-in-rexburg", "time": "2:30 PM", "title": "Groceries in Rexburg", "detail": "Broulim’s or Albertsons in Rexburg, ID — your last full-scale grocery store. Must-haves: bear spray, cooler ice, sandwich supplies, high-protein snacks."}, {"id": "d1-cabin-check-in", "time": "4:00 PM", "title": "Cabin Check-In", "detail": "Arrive at 4225 Big Horn Lane."}, {"id": "d1-dinner-in-island-park", "time": "6:00 PM", "title": "Dinner in Island Park", "detail": "Ponds Lodge or Lakeside Lodge (both close to Bill’s Island)."}, {"id": "d1-prep", "time": "8:30 PM", "title": "Prep", "detail": "Pack the cooler, set coffee for 4:45 AM, and gas up in Island Park."}]}, {"id": "d2", "num": "Day 2", "day": "Saturday", "date": "Sept 5", "theme": "Grand Teton · Tetons & Jackson", "leadLabel": "Route", "leadText": "Island Park → Ashton → Teton Valley → Jackson", "items": [{"id": "d2-leave-cabin", "time": "5:30 AM", "title": "Leave cabin", "detail": ""}, {"id": "d2-hwy-20-s-hwy-32-through-ashton", "time": "Shortcut", "title": "Hwy 20 S → Hwy 32 through Ashton", "detail": "Bypasses the park gates and offers the best “backside” views of the Tetons."}, {"id": "d2-oxbow-bend", "time": "7:30 AM", "title": "Oxbow Bend", "detail": "Best chance for moose and the famous “mirror” reflection."}, {"id": "d2-jenny-lake", "time": "9:00 AM", "title": "Jenny Lake", "detail": "Head straight for the boat shuttle — at capacity by 10 AM."}, {"id": "d2-mormon-row-schwabacher-landing", "time": "1:00 PM", "title": "Mormon Row & Schwabacher Landing", "detail": "Classic photography stops."}, {"id": "d2-moose-wilson-road", "time": "Evening", "title": "Moose-Wilson Road", "detail": "Slow, narrow drive — excellent for black bears in the berry bushes."}, {"id": "d2-jackson-wy", "time": "Dinner", "title": "Jackson, WY", "detail": "A nicer sit-down meal in town."}]}, {"id": "d3", "num": "Day 3", "day": "Sunday", "date": "Sept 6", "theme": "North Loop · Predator Day", "leadLabel": "Route", "leadText": "West Entrance → Hayden Valley → Canyon → Mammoth → Lamar Valley", "items": [{"id": "d3-leave-cabin", "time": "5:15 AM", "title": "Leave cabin", "detail": "Crucial to beat the West Entrance line."}, {"id": "d3-hayden-valley", "time": "6:30–8:30 AM", "title": "Hayden Valley", "detail": "Prime time for bears and the Wapiti Lake wolf pack. Focus on Alum Creek pull-offs."}, {"id": "d3-grand-canyon-of-the-yellowstone", "time": "10:00 AM", "title": "Grand Canyon of the Yellowstone", "detail": "Hit Artist Point first for the iconic view."}, {"id": "d3-mammoth-hot-springs", "time": "1:00 PM", "title": "Mammoth Hot Springs", "detail": "Walk the Upper Terraces. Watch for elk on the lawns."}, {"id": "d3-lamar-valley", "time": "5 PM–Dusk", "title": "Lamar Valley", "detail": "The “best odds” window. Strategic spot: Slough Creek or Hitching Post — look for the spotting-scope crowds."}, {"id": "d3-return-to-island-park", "time": "Late", "title": "Return to Island Park", "detail": "~2-hour drive. Watch for moose/elk on Hwy 20."}]}, {"id": "d4", "num": "Day 4", "day": "Monday", "date": "Sept 7", "theme": "South Loop · Geothermal Icons", "leadLabel": "Route", "leadText": "West Entrance → Grand Prismatic → Old Faithful → West Thumb", "items": [{"id": "d4-leave-cabin", "time": "6:00 AM", "title": "Leave cabin", "detail": ""}, {"id": "d4-grand-prismatic-overlook", "time": "7:00 AM", "title": "Grand Prismatic Overlook", "detail": "Hike the Fairy Falls trail early — this lot is the first to fill on Labor Day weekend."}, {"id": "d4-old-faithful-upper-geyser-basin", "time": "10:30 AM", "title": "Old Faithful & Upper Geyser Basin", "detail": "Watch one eruption, walk to Morning Glory Pool, exit before the noon rush."}, {"id": "d4-west-thumb-geyser-basin", "time": "2:00 PM", "title": "West Thumb Geyser Basin", "detail": "Stunning lakeside geysers."}, {"id": "d4-lake-butte-overlook", "time": "3:30 PM", "title": "Lake Butte Overlook", "detail": "Short, steep drive to a panoramic view of the 132-sq-mile lake."}, {"id": "d4-pelican-creek-nature-trail", "time": "5:00 PM", "title": "Pelican Creek Nature Trail", "detail": "Flat 0.6-mile loop through forest and marsh to a quiet beach. Great for birding."}, {"id": "d4-hayden-valley-round-2", "time": "6:30 PM", "title": "Hayden Valley (Round 2)", "detail": "Use the magic-hour light to scan for predators you missed earlier."}, {"id": "d4-sunset-picnic", "time": "7:30 PM", "title": "Sunset Picnic", "detail": "Dinner at a pull-out as the bison herds settle for the night."}, {"id": "d4-depart-park", "time": "8:00 PM", "title": "Depart park", "detail": "A dark, quiet drive back to Island Park — high beams on!"}]}, {"id": "d5", "num": "Day 5", "day": "Tuesday", "date": "Sept 8", "theme": "Departure (TBD)", "leadLabel": "Plan", "leadText": "Pack up, tidy the cabin, and head home — details still to be decided.", "items": [{"id": "d5-clean-up-the-cabin", "time": "Morning", "title": "Clean up the cabin", "detail": "Pack, tidy up, and check out."}, {"id": "d5-leave-for-the-airport", "time": "—", "title": "Leave for the airport", "detail": "Depart Island Park and travel home."}]}];
+let ITIN=[]; let itinEditing=null; let openDays=null;
+function renderItin(){
+  const wrap=document.getElementById("itin-days"); if(!wrap) return;
+  if(openDays===null) openDays=new Set(ITIN.length?[ITIN[0].id]:[]);
+  let done={}; try{ done=JSON.parse(localStorage.getItem("ystone_itin_done")||"{}")||{}; }catch(e){}
+  wrap.innerHTML=ITIN.map(d=>{
+    const items=d.items.map(it=>{
+      if(itinEditing&&itinEditing.dayId===d.id&&itinEditing.itemId===it.id) return itemEditor(d.id,it);
+      const det=it.detail?(" \u2014 "+esc(it.detail)):"";
+      const edit=HOST?('<span class="line-ctrl"><button class="mv up" data-day="'+d.id+'" data-item="'+it.id+'" title="Move up">\u25b2</button><button class="mv dn" data-day="'+d.id+'" data-item="'+it.id+'" title="Move down">\u25bc</button><button class="item-edit" data-day="'+d.id+'" data-item="'+it.id+'" title="Edit line">\u270e</button></span>'):"";
+      return '<li data-key="'+esc(it.id)+'"'+(done[it.id]?' class="done"':'')+'><button class="check" title="Mark done">\u2713</button><span class="time">'+esc(it.time||"")+'</span><span class="what"><b>'+esc(it.title||"")+'</b>'+det+'</span>'+edit+'</li>';
+    }).join("");
+    const adding=(itinEditing&&itinEditing.dayId===d.id&&itinEditing.add)?itemEditor(d.id,null):"";
+    const addBtn=(HOST&&!(itinEditing&&itinEditing.dayId===d.id&&itinEditing.add))?('<button class="add-line" data-day="'+d.id+'">+ Add line</button>'):"";
+    const sortBtn=HOST?('<button class="sort-time" data-day="'+d.id+'" title="Order lines by time">Sort by time</button>'):"";
+    const dayBodyTop=(itinEditing&&itinEditing.dayId===d.id&&itinEditing.editDay)?dayEditor(d):('<p class="route"><b>'+esc(d.leadLabel)+':</b> '+esc(d.leadText)+'</p>'+((HOST&&!(itinEditing&&itinEditing.dayId===d.id))?('<button class="day-edit" data-day="'+esc(d.id)+'">\u270e Edit heading</button>'):""));
+    return '<div class="day'+(openDays.has(d.id)?" open":"")+'" data-day="'+esc(d.id)+'"><button class="day-head" onclick="toggleDay(this)"><span class="dnum">'+esc(d.num)+'</span><span class="dtitle">'+esc(d.day)+' \u00b7 '+esc(d.date)+'</span><span class="dtheme">'+esc(d.theme)+'</span><span class="chev">+</span></button><div class="day-body">'+dayBodyTop+'<ul>'+items+'</ul>'+adding+addBtn+sortBtn+'</div></div>';
+  }).join("");
+  wireItin();
+}
+function itemEditor(dayId,it){
+  return '<div class="editor" data-day="'+esc(dayId)+'" data-item="'+(it?esc(it.id):"")+'"><input class="e-time" placeholder="Time (e.g. 9:00 AM)" value="'+(it?esc(it.time||""):"")+'"><input class="e-title" placeholder="Title" value="'+(it?esc(it.title||""):"")+'"><textarea class="e-detail" placeholder="Details (optional)">'+(it?esc(it.detail||""):"")+'</textarea><div class="row"><button class="btn-save">Save</button>'+(it?'<button class="btn-del">Delete</button>':"")+'<button class="btn-cancel">Cancel</button></div></div>';
+}
+function dayEditor(d){
+  return '<div class="editor day-editor" data-day="'+esc(d.id)+'"><div class="row"><input class="e-day" placeholder="Day (e.g. Friday)" value="'+esc(d.day||"")+'"><input class="e-date" placeholder="Date (e.g. Sept 4)" value="'+esc(d.date||"")+'"></div><input class="e-theme" placeholder="Theme (e.g. North Loop \u00b7 Predator Day)" value="'+esc(d.theme||"")+'"><div class="row"><input class="e-llabel" placeholder="Label" value="'+esc(d.leadLabel||"")+'" style="max-width:150px;"><input class="e-ltext" placeholder="Goal / route text" value="'+esc(d.leadText||"")+'"></div><div class="row"><button class="btn-save-day">Save</button><button class="btn-cancel">Cancel</button></div></div>';
+}
+function wireItin(){
+  const wrap=document.getElementById("itin-days"); if(!wrap) return;
+  wrap.querySelectorAll("li[data-key] .check").forEach(c=>c.addEventListener("click",ev=>{
+    ev.stopPropagation(); const li=c.closest("li"); const key=li.dataset.key;
+    let done={}; try{ done=JSON.parse(localStorage.getItem("ystone_itin_done")||"{}")||{}; }catch(e){}
+    const on=li.classList.toggle("done"); if(on) done[key]=1; else delete done[key];
+    try{ localStorage.setItem("ystone_itin_done",JSON.stringify(done)); }catch(e){}
+  }));
+  if(!HOST) return;
+  wrap.querySelectorAll(".add-line").forEach(b=>b.addEventListener("click",()=>{ itinEditing={dayId:b.dataset.day,add:true}; renderItin(); }));
+  wrap.querySelectorAll(".item-edit").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); itinEditing={dayId:b.dataset.day,itemId:b.dataset.item}; renderItin(); }));
+  wrap.querySelectorAll(".mv.up").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); moveItem(b.dataset.day,b.dataset.item,-1); }));
+  wrap.querySelectorAll(".mv.dn").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); moveItem(b.dataset.day,b.dataset.item,1); }));
+  wrap.querySelectorAll(".sort-time").forEach(b=>b.addEventListener("click",async()=>{ sortDay(b.dataset.day); await saveItin(); renderItin(); }));
+  wrap.querySelectorAll(".day-edit").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); itinEditing={dayId:b.dataset.day,editDay:true}; renderItin(); }));
+  const ed=wrap.querySelector(".editor"); if(!ed) return;
+  const dayId=ed.dataset.day, itemId=ed.dataset.item;
+  ed.querySelector(".btn-cancel").addEventListener("click",()=>{ itinEditing=null; renderItin(); });
+  if(ed.classList.contains("day-editor")){
+    ed.querySelector(".btn-save-day").addEventListener("click",async()=>{
+      const day=ITIN.find(x=>x.id===dayId); if(!day) return;
+      day.day=ed.querySelector(".e-day").value.trim(); day.date=ed.querySelector(".e-date").value.trim();
+      day.theme=ed.querySelector(".e-theme").value.trim();
+      day.leadLabel=ed.querySelector(".e-llabel").value.trim()||"Plan";
+      day.leadText=ed.querySelector(".e-ltext").value.trim();
+      itinEditing=null; await saveItin(); renderItin();
+    });
+    return;
+  }
+  ed.querySelector(".btn-save").addEventListener("click",async()=>{
+    const time=ed.querySelector(".e-time").value.trim(), title=ed.querySelector(".e-title").value.trim(), detail=ed.querySelector(".e-detail").value.trim();
+    if(!title){ alert("Add a title for this line."); return; }
+    const day=ITIN.find(x=>x.id===dayId); if(!day) return;
+    if(itemId){ const it=day.items.find(x=>x.id===itemId); if(it){ it.time=time; it.title=title; it.detail=detail; } }
+    else { day.items.push({id:"itm"+Date.now().toString(36),time:time,title:title,detail:detail}); }
+    itinEditing=null; await saveItin(); renderItin();
+  });
+  const del=ed.querySelector(".btn-del");
+  if(del) del.addEventListener("click",async()=>{ const day=ITIN.find(x=>x.id===dayId); if(day) day.items=day.items.filter(x=>x.id!==itemId); itinEditing=null; await saveItin(); renderItin(); });
+}
+async function loadItin(){
+  let data=null;
+  if(LIVE){ try{ const r=await sb.from(ITIN_TABLE).select("data").eq("id",1).maybeSingle(); if(!r.error&&r.data&&r.data.data) data=r.data.data; }catch(e){ console.warn("itin load",e); } }
+  ITIN=(Array.isArray(data)&&data.length)?data:JSON.parse(JSON.stringify(DEFAULT_ITIN));
+  renderItin();
+}
+async function saveItin(){
+  if(!LIVE) return;
+  try{ const r=await sb.from(ITIN_TABLE).upsert({id:1,data:ITIN,updated_at:new Date().toISOString()}); if(r.error) throw r.error; }
+  catch(e){ alert("Couldn't save the itinerary: "+(e.message||e)); }
+}
+async function moveItem(dayId,itemId,dir){
+  const day=ITIN.find(x=>x.id===dayId); if(!day) return;
+  const i=day.items.findIndex(x=>x.id===itemId); if(i<0) return;
+  const j=i+dir; if(j<0||j>=day.items.length) return;
+  const a=day.items, t=a[i]; a[i]=a[j]; a[j]=t;
+  await saveItin(); renderItin();
+}
+function parseMin(t){
+  if(!t) return null;
+  const m=String(t).match(/(\d{1,2})(?::(\d{2}))?/); if(!m) return null;
+  let h=parseInt(m[1],10)%12; const mm=m[2]?parseInt(m[2],10):0;
+  const ap=String(t).match(/(AM|PM)/i); if(ap&&/PM/i.test(ap[1])) h+=12;
+  return h*60+mm;
+}
+function sortDay(dayId){
+  const day=ITIN.find(x=>x.id===dayId); if(!day) return;
+  day.items=day.items.map((it,idx)=>({it:it,idx:idx,m:parseMin(it.time)}))
+    .sort((a,b)=>{ if(a.m===null&&b.m===null) return a.idx-b.idx; if(a.m===null) return 1; if(b.m===null) return -1; return (a.m-b.m)||(a.idx-b.idx); })
+    .map(o=>o.it);
+}
+loadItin();
+
+</script>
+
+<!--
+  =================  yellowstone-setup.sql  =================
+  After creating the PUBLIC bucket named  yellowstone-album , run:
+
+  create table if not exists public.yellowstone_photos (
+    id uuid primary key default gen_random_uuid(),
+    url text not null, path text not null,
+    uploader text, caption text,
+    created_at timestamptz not null default now()
+  );
+  alter table public.yellowstone_photos enable row level security;
+  drop policy if exists "anyone add yp" on public.yellowstone_photos;
+  create policy "anyone add yp" on public.yellowstone_photos for insert to anon with check (true);
+  drop policy if exists "anyone view yp" on public.yellowstone_photos;
+  create policy "anyone view yp" on public.yellowstone_photos for select to anon using (true);
+
+  drop policy if exists "anyone upload ys" on storage.objects;
+  create policy "anyone upload ys" on storage.objects for insert to anon with check (bucket_id = 'yellowstone-album');
+  drop policy if exists "anyone view ys" on storage.objects;
+  create policy "anyone view ys" on storage.objects for select to anon using (bucket_id = 'yellowstone-album');
+
+  drop policy if exists "Anyone can read buckets" on storage.buckets;
+  create policy "Anyone can read buckets" on storage.buckets for select using (true);
+  ==========================================================
+-->
+</body>
+</html>
